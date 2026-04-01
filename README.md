@@ -5,6 +5,10 @@ Live at https://zeynep-ali.github.io/past-skies
 
 You can use most weather apps to see what the weather is tomorrow; how about what it actually was yesterday, and whether the forecast got it right? This is a mobile app that brings together the actual weather from the past seven days alongside the weather now and the forecast for later.
 
+## Screenshots
+
+<img src="screenshots/IMG_1218.jpeg" width="230"> <img src="screenshots/IMG_1219.jpeg" width="230">
+
 - Yesterday's actual weather vs today's forecast, side by side — temperature, high/low, precipitation, wind
 - Hour by hour strip — swipe left through the past 12 hours, right through the next 12
 - Forecast vs actual chart
