@@ -21,6 +21,8 @@ You can use most weather apps to see what the weather is tomorrow; how about wha
 
 Past Skies works as a home screen app on both iPhone and Android — no app store required. It takes about 30 seconds.
 
+Link: https://zeynep-ali.github.io/past-skies
+
 **iPhone** — open the link in Safari, tap the Share button, tap Add to Home Screen. (Must use Safari.) The app will appear on your home screen like any other app. Tap it to open.
 
 **Android** — open the link in Chrome, tap the three-dot menu, tap Add to Home Screen.
