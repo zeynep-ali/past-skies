@@ -3,17 +3,29 @@ Weather: past, present and future.
 
 You can use most weather apps to see what the weather is tomorrow; how about what it actually was yesterday, and whether the forecast got it right? This is a mobile app that brings together the actual weather from the past seven days alongside the weather now and the forecast for later.
 
-- **Yesterday's actual weather** — temperature, high/low, precipitation, wind
-- **Split hero card** — yesterday's actual side by side with today's forecast
-- **Hour by hour strip** — swipe left through the past 12 hours, right through the next 12. Each card is labelled Actual (past) or Forecast (future)
-- **Forecast vs actual chart** — a two-line SVG graph overlaying the GFS model's prediction against what the analysis recorded
-- **Precipitation chart** — appears automatically when there's rain in the window, comparing predicted vs recorded precipitation as a bar chart
-- **Past 7 days** — scrollable daily cards with icon, average temp, high/low, and rainfall
-- **7-day forecast** — upcoming days with precipitation probability
-- **City search** — search any city worldwide
-- **GPS auto-detect** — loads your current location on open
-- **°F / °C toggle**
-- **Installable as a home screen app** on iPhone and Android via Safari/Chrome → Add to Home Screen
+- Yesterday's actual weather vs today's forecast, side by side — temperature, high/low, precipitation, wind
+- Hour by hour strip — swipe left through the past 12 hours, right through the next 12
+- Forecast vs actual chart
+- Precipitation chart - appears when there's precipitation
+- Past 7 days and future 7 day forecast
+- City search — search any city worldwide
+- GPS auto-detect — loads your current location on open
+- °F / °C toggle
+- Installable as a home screen app on iPhone and Android via Safari/Chrome → Add to Home Screen
+
+---
+
+## How to install on your phone
+
+Past Skies works as a home screen app on both iPhone and Android — no app store required. It takes about 30 seconds.
+
+**iPhone** — open the link in Safari, tap the Share button, tap Add to Home Screen. (Must use Safari.) The app will appear on your home screen like any other app. Tap it to open.
+
+**Android** — open the link in Chrome, tap the three-dot menu, tap Add to Home Screen.
+
+### Sharing with someone else
+
+Just send them the link. When they open it, they can follow the steps above to install it.
 
 ---
 
