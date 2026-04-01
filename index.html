@@ -463,6 +463,34 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 const WMO={0:['☀️','Clear sky'],1:['🌤','Mainly clear'],2:['⛅','Partly cloudy'],3:['☁️','Overcast'],45:['🌫','Foggy'],48:['🌫','Icy fog'],51:['🌦','Light drizzle'],53:['🌦','Drizzle'],55:['🌧','Heavy drizzle'],61:['🌧','Light rain'],63:['🌧','Rain'],65:['🌧','Heavy rain'],71:['🌨','Light snow'],73:['❄️','Snow'],75:['❄️','Heavy snow'],77:['🌨','Snow grains'],80:['🌦','Showers'],81:['🌧','Heavy showers'],82:['⛈','Violent showers'],85:['🌨','Snow showers'],86:['❄️','Heavy snow showers'],95:['⛈','Thunderstorm'],96:['⛈','Stormy & hail'],99:['⛈','Severe storm']};
 function wmo(c){return WMO[c]||['🌡','Unknown'];}
 
+// Night icon remapping: for codes that mean "clear/few clouds" during the day,
+// substitute night-appropriate icons when the hour falls after sunset or before sunrise
+const NIGHT_REMAP={
+  0:['🌙','Clear sky'],
+  1:['🌙','Mainly clear'],
+  2:['☁️','Partly cloudy'],
+  3:['☁️','Overcast'],
+  80:['🌧️','Showers'],
+  81:['🌧️','Heavy showers'],
+  51:['🌧️','Light drizzle'],
+  53:['🌧️','Drizzle'],
+};
+
+function wmoForHour(code, dtMs, daily){
+  // Find the sunrise/sunset for the day this hour falls on
+  const dateStr=new Date(dtMs).toISOString().split('T')[0];
+  const dayIdx=daily.time.indexOf(dateStr);
+  if(dayIdx===-1) return wmo(code);
+  const sunrise=daily.sunrise?.[dayIdx];
+  const sunset=daily.sunset?.[dayIdx];
+  if(!sunrise||!sunset) return wmo(code);
+  const sunriseMs=new Date(sunrise).getTime();
+  const sunsetMs=new Date(sunset).getTime();
+  const isNight=dtMs<sunriseMs||dtMs>sunsetMs;
+  if(isNight&&NIGHT_REMAP[code]) return NIGHT_REMAP[code];
+  return wmo(code);
+}
+
 let FAH=true,rawData=null;
 const c2f=c=>c*9/5+32;
 const ft=c=>c==null?'—':FAH?Math.round(c2f(c))+'°F':Math.round(c)+'°C';
@@ -753,7 +781,21 @@ function renderMain(data){
     const isFuture=diffH>0;
     const temp=hourly.temperature_2m[idx];
     const pop=hourly.precipitation_probability?.[idx]??0;
-    const[ic]=wmo(hourly.weathercode?.[idx]??0);
+
+    // For past hours: sanity-check the weathercode against actual recorded precipitation.
+    // If the model says "clear" but there's real precipitation recorded, override with rain/snow.
+    let weatherCode=hourly.weathercode?.[idx]??0;
+    if(isPast||isNow){
+      const actualPrecip=hourly.precipitation?.[idx]||0;
+      const tempC=hourly.temperature_2m?.[idx]??10;
+      // Clear/mainly clear but precipitation was actually recorded → fix the icon
+      if(actualPrecip>=1&&weatherCode<=1){
+        weatherCode=tempC<=0?71:61; // snow or rain
+      } else if(actualPrecip>=0.2&&weatherCode<=1){
+        weatherCode=tempC<=0?77:51; // snow grains or drizzle
+      }
+    }
+    const[ic]=wmoForHour(weatherCode, dt.getTime(), daily);
 
     const card=document.createElement('div');
     card.className='hr-card '+(isNow?'now':isPast?'past':'future');
@@ -841,14 +883,14 @@ function renderMain(data){
 
 async function fetchWeather(lat,lon){
   setStatus('Fetching weather…');
-  const df='temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,windspeed_10m_max,precipitation_probability_max';
+  const df='temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,windspeed_10m_max,precipitation_probability_max,sunrise,sunset';
   const hf='temperature_2m,precipitation_probability,weathercode,precipitation';
   // Use 3 days back to catch the full -12h window in any timezone
   const ago3=offsetISO(-3), tom1=offsetISO(1);
 
   const [mainRes, histFcRes] = await Promise.all([
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=${df}&hourly=${hf}&past_days=7&forecast_days=7&timezone=auto`),
-    fetch(`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation&start_date=${ago3}&end_date=${tom1}&models=gfs_seamless&timezone=auto`)
+    fetch(`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,weathercode&start_date=${ago3}&end_date=${tom1}&models=gfs_seamless&timezone=auto`)
       .catch(e=>{console.warn('Historical forecast API failed:',e);return null;})
   ]);
 
@@ -862,7 +904,7 @@ async function fetchWeather(lat,lon){
       const hd=await histFcRes.json();
       if(hd.hourly&&hd.hourly.time&&hd.hourly.temperature_2m){
         histFc=hd.hourly;
-        console.log('Historical GFS loaded:',histFc.time.length,'hours');
+        console.log('Historical GFS loaded:',histFc.time.length,'hours, weathercode:',!!histFc.weathercode);
       }
     }catch(e){console.warn('Historical forecast parse failed:',e);}
   }
