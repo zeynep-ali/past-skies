@@ -1,3 +1,13 @@
+// ---- ANALYTICS ----
+function track(event, props){
+  fetch('https://analytics.past-skies.com/', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({event, props:props||undefined}),
+  }).catch(()=>{});
+}
+window.addEventListener('appinstalled',()=>track('pwa_install'));
+
 const WMO={0:['☀️','Clear sky'],1:['🌤','Mainly clear'],2:['⛅','Partly cloudy'],3:['☁️','Overcast'],45:['🌫','Foggy'],48:['🌫','Icy fog'],51:['🌦','Light drizzle'],53:['🌦','Drizzle'],55:['🌧','Heavy drizzle'],61:['🌧','Light rain'],63:['🌧','Rain'],65:['🌧','Heavy rain'],71:['🌨','Light snow'],73:['❄️','Snow'],75:['❄️','Heavy snow'],77:['🌨','Snow grains'],80:['🌦','Showers'],81:['🌧','Heavy showers'],82:['⛈','Violent showers'],85:['🌨','Snow showers'],86:['❄️','Heavy snow showers'],95:['⛈','Thunderstorm'],96:['⛈','Stormy & hail'],99:['⛈','Severe storm']};
 function wmo(c){return WMO[c]||['🌡','Unknown'];}
 
@@ -40,6 +50,7 @@ function updateToggleUI(){
 }
 function toggleUnit(){
   FAH=!FAH;
+  track('unit_toggle',{unit:FAH?'F':'C'});
   updateToggleUI();
   if(rawData){renderMain(rawData);renderChart(rawData);renderPrecipChart(rawData);}
 }
@@ -522,7 +533,7 @@ async function doSearch(q){
       const item=document.createElement('div');
       item.className='sri';
       item.innerHTML=`<span class="sri-pin">◎</span><span>${p.name}${a}, ${p.country_code||''}</span>`;
-      item.addEventListener('click',()=>{si_el.value='';sr_el.style.display='none';loadCity(p.latitude,p.longitude,p.name,p.country_code||'');});
+      item.addEventListener('click',()=>{si_el.value='';sr_el.style.display='none';track('city_search',{city:p.name,country:p.country_code||''});loadCity(p.latitude,p.longitude,p.name,p.country_code||'');});
       sr_el.appendChild(item);
     });
     sr_el.style.display='block';
@@ -534,6 +545,7 @@ document.addEventListener('click',e=>{if(!document.getElementById('swrap').conta
 
 document.getElementById('gpsbtn').addEventListener('click',()=>{
   if(!navigator.geolocation)return;
+  track('gps_used');
   showLoad();
   setStatus('Getting GPS…');
   navigator.geolocation.getCurrentPosition(
@@ -551,6 +563,7 @@ function showErr(msg){
 }
 
 async function init(){
+  track('pageview');
   updateToggleUI();
   showLoad();
   setStatus('Starting up…');
@@ -596,6 +609,7 @@ function calcForecastMaxError(hourly,histFc){
 function spawnFogMonster(isFoggy,errorC){
   const existing=document.getElementById('fog-monster');
   if(existing) existing.remove();
+  track('fog_monster',{trigger:errorC!=null?'error':'fog',errorF:errorC!=null?Math.round(errorC*9/5):null});
 
   let errLabel=null;
   if(errorC!=null){
