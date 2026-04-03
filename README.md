@@ -47,19 +47,6 @@ Just send them the link. When they open it, they can follow the steps above to i
 
 ---
 
-## Running locally
-
-No server needed. Just open `index.html` in a browser.
-
-```bash
-open index.html      # macOS
-start index.html     # Windows
-```
-
-GPS will prompt for permission. If denied, the app defaults to San Francisco.
-
----
-
 ## Privacy
 
 Past Skies does not collect, store, or transmit any personal data.
