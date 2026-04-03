@@ -325,7 +325,7 @@ function renderMain(data){
   hourly.time.forEach((t,i)=>{
     const dt=new Date(t);
     const diffH=Math.round((dt-nowDate)/3600000);
-    if(diffH>=-12&&diffH<=12){
+    if(diffH>=-25&&diffH<=12){
       allHours.push({iso:t,idx:i,diffH,hour:dt.getHours(),dt});
     }
   });
