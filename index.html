@@ -583,7 +583,7 @@ function renderAll(data){
     const maxErrorC=calcForecastMaxError(data.hourly,data.histFc);
     const hasLargeError=maxErrorC!=null&&(maxErrorC*9/5)>4;
     if(isFoggy||hasLargeError){
-      setTimeout(()=>spawnFogMonster(maxErrorC),1500);
+      setTimeout(()=>spawnFogMonster(isFoggy,hasLargeError?maxErrorC:null),1500);
     }
   }
 }
@@ -1105,13 +1105,16 @@ function calcForecastMaxError(hourly,histFc){
   return maxError;
 }
 
-function spawnFogMonster(errorC){
+function spawnFogMonster(isFoggy,errorC){
   const existing=document.getElementById('fog-monster');
   if(existing) existing.remove();
 
-  const errLabel=errorC!=null
-    ?(FAH?`Argh! Forecast was ${Math.round(errorC*9/5)}°F off!`:`Argh! Forecast was ${errorC.toFixed(1)}°C off!`)
-    :null;
+  let errLabel=null;
+  if(errorC!=null){
+    errLabel=FAH?`Argh! Forecast was ${Math.round(errorC*9/5)}°F off!`:`Argh! Forecast was ${errorC.toFixed(1)}°C off!`;
+  } else if(isFoggy){
+    errLabel='Rolling in!';
+  }
   const showBadge=errLabel!=null;
 
   const el=document.createElement('div');
