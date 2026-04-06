@@ -402,10 +402,7 @@ function renderMain(data){
   // Scroll so "now" card is left-visible with 1 card of past showing
   if(nowCardEl){
     setTimeout(()=>{
-      const cardW=104; // ~90px card + 10px gap + some padding
-      const nowIdx=allHours.findIndex(x=>x.diffH===0);
-      const scrollTo=Math.max(0,(nowIdx-1)*cardW-16);
-      hs.scrollLeft=scrollTo;
+      hs.scrollLeft=nowCardEl.offsetLeft-(hs.offsetWidth/2)+(nowCardEl.offsetWidth/2);
     },120);
   }
 
