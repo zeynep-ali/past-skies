@@ -26,7 +26,8 @@ const NIGHT_REMAP={
 
 function wmoForHour(code, dtMs, daily){
   // Find the sunrise/sunset for the day this hour falls on
-  const dateStr=new Date(dtMs).toISOString().split('T')[0];
+  const _d=new Date(dtMs);
+  const dateStr=_d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');
   const dayIdx=daily.time.indexOf(dateStr);
   if(dayIdx===-1) return wmo(code);
   const sunrise=daily.sunrise?.[dayIdx];
