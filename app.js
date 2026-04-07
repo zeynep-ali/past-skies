@@ -1,9 +1,14 @@
 // ---- ANALYTICS ----
+const SESSION_ID=(()=>{
+  let id=sessionStorage.getItem('ps_sid');
+  if(!id){id=crypto.randomUUID();sessionStorage.setItem('ps_sid',id);}
+  return id;
+})();
 function track(event, props){
   fetch('https://analytics.past-skies.com/', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({event, props:props||undefined}),
+    body:JSON.stringify({event, session_id:SESSION_ID, props:props||undefined}),
   }).catch(()=>{});
 }
 window.addEventListener('appinstalled',()=>track('pwa_install'));
@@ -56,8 +61,9 @@ function toggleUnit(){
   if(rawData){renderMain(rawData);renderChart(rawData);renderPrecipChart(rawData);}
 }
 
-function todayISO(){return new Date().toISOString().split('T')[0];}
-function offsetISO(n){const d=new Date();d.setDate(d.getDate()+n);return d.toISOString().split('T')[0];}
+function localISO(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function todayISO(){return localISO(new Date());}
+function offsetISO(n){const d=new Date();d.setDate(d.getDate()+n);return localISO(d);}
 function dayS(iso){return new Date(iso+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});}
 function monD(iso){return new Date(iso+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});}
 function fmt12(h){return(h%12||12)+(h>=12?' pm':' am');}
@@ -379,7 +385,7 @@ function renderMain(data){
 
     // Date label for hours that cross midnight
     const dayLabel=dt.toLocaleDateString('en-US',{weekday:'short'});
-    const todLabel=dt.toISOString().split('T')[0]===tod?'':dayLabel+' ';
+    const todLabel=localISO(dt)===tod?'':dayLabel+' ';
     inner+=`<div class="hr-time">${todLabel}${fmt12(hour)}</div>`;
     inner+=`<div class="hr-icon">${ic}</div>`;
     inner+=`<div class="hr-temp">${fn(temp)}<span style="font-size:12px;color:var(--muted)">°</span></div>`;
