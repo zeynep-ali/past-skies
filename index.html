@@ -949,18 +949,62 @@ function renderMain(data){
   });
 }
 
+// ---- DEV MODE — set to true to use fake data instead of live API ----
+const DEV_MODE = false;
+
+function makeFakeData(){
+  const now=new Date();
+  const daily={time:[],temperature_2m_max:[],temperature_2m_min:[],precipitation_sum:[],weathercode:[],windspeed_10m_max:[],precipitation_probability_max:[],sunrise:[],sunset:[]};
+  for(let i=-7;i<=7;i++){
+    const d=new Date(now); d.setDate(d.getDate()+i);
+    const iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    daily.time.push(iso);
+    daily.temperature_2m_max.push(18+Math.sin(i)*3);
+    daily.temperature_2m_min.push(10+Math.sin(i)*2);
+    daily.precipitation_sum.push(i%3===0?2.4:0);
+    daily.weathercode.push(i%3===0?61:i%5===0?2:0);
+    daily.windspeed_10m_max.push(15+i);
+    daily.precipitation_probability_max.push(i%3===0?70:10);
+    daily.sunrise.push(iso+'T06:20');
+    daily.sunset.push(iso+'T19:45');
+  }
+  const hourly={time:[],temperature_2m:[],precipitation_probability:[],weathercode:[],precipitation:[]};
+  const startH=new Date(now); startH.setHours(startH.getHours()-30,0,0,0);
+  for(let i=0;i<55;i++){
+    const h=new Date(startH); h.setHours(h.getHours()+i);
+    const iso=h.getFullYear()+'-'+String(h.getMonth()+1).padStart(2,'0')+'-'+String(h.getDate()).padStart(2,'0')+'T'+String(h.getHours()).padStart(2,'0')+':00';
+    hourly.time.push(iso);
+    hourly.temperature_2m.push(14+Math.sin(i/4)*5);
+    hourly.precipitation_probability.push(i%8===0?60:5);
+    hourly.weathercode.push(i%8===0?61:h.getHours()<6||h.getHours()>20?1:0);
+    hourly.precipitation.push(i%8===0?0.8:0);
+  }
+  return{daily,hourly,histFc:null,lat:37.7749,lon:-122.4194};
+}
+
+function wxCacheKey(lat,lon){return`wx_${lat.toFixed(2)}_${lon.toFixed(2)}`;}
+function saveWxCache(key,data){try{localStorage.setItem(key,JSON.stringify({...data,_ts:Date.now()}));}catch(e){}}
+function loadWxCache(key){try{const s=localStorage.getItem(key);return s?JSON.parse(s):null;}catch{return null;}}
+
 async function fetchWeather(lat,lon){
+  if(DEV_MODE){setStatus('Dev mode — using fake data');return makeFakeData();}
   setStatus('Fetching weather…');
   const df='temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,windspeed_10m_max,precipitation_probability_max,sunrise,sunset';
   const hf='temperature_2m,precipitation_probability,weathercode,precipitation';
   // Use 3 days back to catch the full -12h window in any timezone
   const ago3=offsetISO(-3), tom1=offsetISO(1);
 
-  const [mainRes, histFcRes] = await Promise.all([
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=${df}&hourly=${hf}&past_days=7&forecast_days=7&timezone=auto`),
-    fetch(`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,weathercode&start_date=${ago3}&end_date=${tom1}&models=gfs_seamless&timezone=auto`)
-      .catch(e=>{console.warn('Historical forecast API failed:',e);return null;})
-  ]);
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),10000);
+
+  let mainRes, histFcRes;
+  try{
+    [mainRes, histFcRes] = await Promise.all([
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=${df}&hourly=${hf}&past_days=7&forecast_days=7&timezone=auto`,{signal:ctrl.signal}),
+      fetch(`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,weathercode&start_date=${ago3}&end_date=${tom1}&models=gfs_seamless&timezone=auto`,{signal:ctrl.signal})
+        .catch(e=>{console.warn('Historical forecast API failed:',e);return null;})
+    ]);
+  }finally{clearTimeout(tid);}
 
   if(!mainRes.ok) throw new Error(`HTTP ${mainRes.status}`);
   const data = await mainRes.json();
@@ -977,7 +1021,9 @@ async function fetchWeather(lat,lon){
     }catch(e){console.warn('Historical forecast parse failed:',e);}
   }
 
-  return{daily:data.daily, hourly:data.hourly, histFc, lat, lon};
+  const result={daily:data.daily, hourly:data.hourly, histFc, lat, lon};
+  saveWxCache(wxCacheKey(lat,lon),result);
+  return result;
 }
 
 async function loadCity(lat,lon,name,cc){
@@ -994,7 +1040,18 @@ async function loadCity(lat,lon,name,cc){
     showMain();
   }catch(e){
     console.error(e);
-    showErr(e.message);
+    const cached=loadWxCache(wxCacheKey(lat,lon));
+    if(cached){
+      renderAll(cached);
+      const hrs=Math.round((Date.now()-cached._ts)/3600000);
+      const age=hrs<1?'less than an hour':hrs===1?'1 hour':`${hrs} hours`;
+      const el=document.getElementById('updated-ts');
+      if(el)el.textContent=`Cached data from ${age} ago — API unavailable`;
+      showMain();
+    }else{
+      const isNetworkErr=e instanceof TypeError&&e.message.toLowerCase().includes('fetch')||e.name==='AbortError';
+      showErr(isNetworkErr?'Weather data is currently unavailable. Open-Meteo may be down — please try again in a few minutes.':e.message);
+    }
   }
 }
 
