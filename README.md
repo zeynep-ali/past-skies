@@ -47,26 +47,30 @@ Just send them the link. When they open it, they can follow the steps above to i
 
 ---
 
+## Running locally
+
+No server needed. Just open `index.html` in a browser.
+
+```bash
+open index.html      # macOS
+start index.html     # Windows
+```
+
+GPS will prompt for permission. If denied, the app defaults to San Francisco.
+
+---
+
 ## Privacy
 
-  Past Skies collects anonymous usage analytics to understand how the app is being used. No personal data is collected, no cookies are set, and nothing is shared with third parties.
-  Analytics data is stored on infrastructure I own and control. It never passes through a third-party analytics service.
+Past Skies does not collect, store, or transmit any personal data.
 
-  The following events are recorded, along with approximate country and region (derived from your IP address, which is never stored):
+When you open the app, your browser requests your GPS coordinates directly — these are sent only to the Open-Meteo and OpenStreetMap APIs to fetch weather data for your location. Neither of those services require an account or tie requests to an identity. Your coordinates are never sent to any server I control, never logged, and never shared with third parties.
 
-  - App opens
-  - City searches (city name and country only)
-  - °F / °C toggles
-  - GPS button usage
-  - Fog monster appearances
-  - Home screen installs
+The app has no backend, no database, no analytics, no cookies, and no tracking of any kind. Nothing persists between sessions. If you search for a city, that search lives only in your browser for the duration of your visit and disappears when you close the tab.
 
-  Your IP address, device identifiers, and any information that could identify you individually are never recorded.
+Because the app is a static file hosted on GitHub Pages, even the hosting layer has no visibility into how it's being used.
 
-  When you open the app, your browser requests your GPS coordinates directly. These are sent only to the Open-Meteo and OpenStreetMap APIs to fetch weather data. Your coordinates are
-  never sent to any server I control.
-
-  tl;dr: the app knows roughly how many people use it and what features they use — no identifying data is collected or stored.
+**tl;dr:** the app doesn't know who you are, doesn't want to, and has no way to find out.
 
 ---
 
