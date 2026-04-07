@@ -1,7 +1,6 @@
-const CACHE = 'past-skies-v1'; // ← bump this on every deploy
+const CACHE = 'past-skies-v2'; // ← bump this on every deploy
 
 const STATIC = [
-  '/',
   '/index.html',
   '/style.css',
   '/app.js',
