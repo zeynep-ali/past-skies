@@ -319,7 +319,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 }
 @keyframes hintFade{to{opacity:0;}}
 .fog-error-badge{
-  position:absolute;top:-20px;right:0;
+  position:absolute;top:-20px;left:50%;transform:translateX(-50%);
   background:rgba(240,120,120,0.85);color:#fff;
   font-size:11px;font-weight:600;padding:4px 10px;border-radius:60px;
   font-family:'Outfit',sans-serif;letter-spacing:.04em;white-space:nowrap;
@@ -577,6 +577,16 @@ function renderAll(data){
       const ms=new Date(t).getTime();
       if(ms>=nowMs&&ms<=todayMidnight.getTime()){
         const wc=data.hourly.weathercode?.[i]??0;
+        if(wc===45||wc===48) isFoggy=true;
+      }
+    });
+    // Also trigger if today's or tomorrow's daily icon is fog
+    const todayStr=new Date().toISOString().slice(0,10);
+    const tom=new Date(); tom.setDate(tom.getDate()+1);
+    const tomorrowStr=tom.toISOString().slice(0,10);
+    data.daily.time.forEach((t,i)=>{
+      if(t===todayStr||t===tomorrowStr){
+        const wc=data.daily.weathercode?.[i]??0;
         if(wc===45||wc===48) isFoggy=true;
       }
     });
