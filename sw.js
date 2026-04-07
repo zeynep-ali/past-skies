@@ -16,9 +16,6 @@ const API_HOSTS = [
 
 // Pre-cache static assets on install
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(STATIC))
-  );
   self.skipWaiting();
 });
 
