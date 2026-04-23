@@ -30,16 +30,14 @@ const NIGHT_REMAP={
 };
 
 function wmoForHour(code, dtMs, daily){
-  // Find the sunrise/sunset for the day this hour falls on
-  const _d=new Date(dtMs);
-  const dateStr=_d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');
+  const dateStr=new Date(dtMs).toISOString().slice(0,10);
   const dayIdx=daily.time.indexOf(dateStr);
   if(dayIdx===-1) return wmo(code);
   const sunrise=daily.sunrise?.[dayIdx];
   const sunset=daily.sunset?.[dayIdx];
   if(!sunrise||!sunset) return wmo(code);
-  const sunriseMs=new Date(sunrise).getTime();
-  const sunsetMs=new Date(sunset).getTime();
+  const sunriseMs=localMs(sunrise);
+  const sunsetMs=localMs(sunset);
   const isNight=dtMs<sunriseMs||dtMs>sunsetMs;
   if(isNight&&NIGHT_REMAP[code]) return NIGHT_REMAP[code];
   return wmo(code);
@@ -64,6 +62,9 @@ function toggleUnit(){
 function localISO(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function todayISO(){return localISO(new Date());}
 function offsetISO(n){const d=new Date();d.setDate(d.getDate()+n);return localISO(d);}
+function localMs(iso){return new Date(iso+'Z').getTime();}
+function cityNowMs(off){return Date.now()+(off||0)*1000;}
+function cityDateStr(off,n){const d=new Date(Date.now()+(off||0)*1000+(n||0)*86400000);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
 function dayS(iso){return new Date(iso+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});}
 function monD(iso){return new Date(iso+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});}
 function fmt12(h){return(h%12||12)+(h>=12?' pm':' am');}
@@ -76,17 +77,27 @@ function renderAll(data){
   renderPrecipChart(data);
   // Fog monster — shows if fog in today's forecast OR any historical point was >4°F off
   if(data.lat&&data.lon&&isBayArea(data.lat,data.lon)){
-    const nowMs=Date.now();
-    const todayMidnight=new Date(); todayMidnight.setHours(23,59,59,999);
+    const off=data.utcOffsetSec??0;
+    const nowMs=cityNowMs(off);
+    const todayEnd=localMs(cityDateStr(off,1)+'T00:00')-1;
     let isFoggy=false;
     data.hourly.time.forEach((t,i)=>{
-      const ms=new Date(t).getTime();
-      if(ms>=nowMs&&ms<=todayMidnight.getTime()){
+      const ms=localMs(t);
+      if(ms>=nowMs&&ms<=todayEnd){
         const wc=data.hourly.weathercode?.[i]??0;
         if(wc===45||wc===48) isFoggy=true;
       }
     });
-    const maxErrorC=calcForecastMaxError(data.hourly,data.histFc);
+    // Also trigger if today's or tomorrow's daily icon is fog
+    const todayStr=cityDateStr(off,0);
+    const tomorrowStr=cityDateStr(off,1);
+    data.daily.time.forEach((t,i)=>{
+      if(t===todayStr||t===tomorrowStr){
+        const wc=data.daily.weathercode?.[i]??0;
+        if(wc===45||wc===48) isFoggy=true;
+      }
+    });
+    const maxErrorC=calcForecastMaxError(data.hourly,data.histFc,off);
     const hasLargeError=maxErrorC!=null&&(maxErrorC*9/5)>4;
     if(isFoggy||hasLargeError){
       setTimeout(()=>spawnFogMonster(isFoggy,hasLargeError?maxErrorC:null),1500);
@@ -101,33 +112,30 @@ function renderPrecipChart(data){
   const note=document.getElementById('precip-note');
   if(!outer||!body)return;
 
-  const nowMs=Date.now();
+  const nowMs=cityNowMs(data.utcOffsetSec??0);
   const startMs=nowMs-12*3600000;
   const endMs=nowMs+12*3600000;
 
-  // Actual precipitation from main API
   const actualPts=[];
   hourly.time.forEach((t,i)=>{
-    const ms=new Date(t).getTime();
+    const ms=localMs(t);
     if(ms>=startMs&&ms<=endMs){
       actualPts.push({ms,val:hourly.precipitation?.[i]||0});
     }
   });
 
-  // GFS past precipitation from historical API
   const gfsPastPts=[];
   if(histFc&&histFc.precipitation){
     histFc.time.forEach((t,i)=>{
-      const ms=new Date(t).getTime();
+      const ms=localMs(t);
       if(ms>=startMs&&ms<=nowMs){
         gfsPastPts.push({ms,val:histFc.precipitation[i]||0});
       }
     });
   }
-  // GFS future precipitation from main API
   const gfsFuturePts=[];
   hourly.time.forEach((t,i)=>{
-    const ms=new Date(t).getTime();
+    const ms=localMs(t);
     if(ms>nowMs&&ms<=endMs){
       gfsFuturePts.push({ms,val:hourly.precipitation?.[i]||0});
     }
@@ -150,7 +158,7 @@ function renderPrecipChart(data){
 
   const timeTicks=[-12,-6,0,6,12].map(h=>({
     ms:nowMs+h*3600000,
-    label:h===0?'now':fmt12(new Date(nowMs+h*3600000).getHours()),
+    label:h===0?'now':fmt12(new Date(nowMs+h*3600000).getUTCHours()),
     isNow:h===0
   }));
 
@@ -199,25 +207,23 @@ function renderChart(data){
   const note=document.getElementById('chart-note');
   if(!body)return;
 
-  const nowMs=Date.now();
+  const nowMs=cityNowMs(data.utcOffsetSec??0);
   const startMs=nowMs-12*3600000;
   const endMs=nowMs+12*3600000;
 
-  // ACTUAL line: model analysis from main API (past hours only — solid teal)
   const actualPts=[];
   hourly.time.forEach((t,i)=>{
-    const ms=new Date(t).getTime();
+    const ms=localMs(t);
     if(ms>=startMs&&ms<=nowMs){
       const temp=hourly.temperature_2m[i];
       if(temp!=null) actualPts.push({ms,temp});
     }
   });
 
-  // GFS FORECAST past: historical forecast API (what was predicted for those hours)
   const gfsPastPts=[];
   if(histFc){
     histFc.time.forEach((t,i)=>{
-      const ms=new Date(t).getTime();
+      const ms=localMs(t);
       if(ms>=startMs&&ms<=nowMs){
         const temp=histFc.temperature_2m[i];
         if(temp!=null) gfsPastPts.push({ms,temp});
@@ -226,10 +232,9 @@ function renderChart(data){
     console.log('GFS past points in window:',gfsPastPts.length);
   }
 
-  // GFS FORECAST future: from main API (what the model predicts going forward)
   const gfsFuturePts=[];
   hourly.time.forEach((t,i)=>{
-    const ms=new Date(t).getTime();
+    const ms=localMs(t);
     if(ms>nowMs&&ms<=endMs){
       const temp=hourly.temperature_2m[i];
       if(temp!=null) gfsFuturePts.push({ms,temp});
@@ -264,7 +269,7 @@ function renderChart(data){
   // Time axis
   const timeTicks=[-12,-6,0,6,12].map(h=>({
     ms:nowMs+h*3600000,
-    label:h===0?'now':fmt12(new Date(nowMs+h*3600000).getHours()),
+    label:h===0?'now':fmt12(new Date(nowMs+h*3600000).getUTCHours()),
     isNow:h===0
   }));
 
@@ -297,7 +302,8 @@ function renderChart(data){
 
 function renderMain(data){
   const{daily,hourly}=data;
-  const tod=todayISO(),yest=offsetISO(-1);
+  const off=data.utcOffsetSec??0;
+  const tod=cityDateStr(off,0),yest=cityDateStr(off,-1);
 
   /* ---- Yesterday hero ---- */
   const yi=daily.time.indexOf(yest);
@@ -335,21 +341,20 @@ function renderMain(data){
   // We show: past 12 hours up to now, then now, then next 12 hours
   const hs=document.getElementById('hscroll');
   hs.innerHTML='';
-  const nowH=new Date().getHours();
-  const nowDate=new Date();
+  const nowMs=cityNowMs(off);
 
   // Build a list of hour entries we care about: -12h to +12h from now
   const allHours=[];
   hourly.time.forEach((t,i)=>{
-    const dt=new Date(t);
-    const diffH=Math.round((dt-nowDate)/3600000);
+    const dtMs=localMs(t);
+    const diffH=Math.round((dtMs-nowMs)/3600000);
     if(diffH>=-25&&diffH<=12){
-      allHours.push({iso:t,idx:i,diffH,hour:dt.getHours(),dt});
+      allHours.push({iso:t,idx:i,diffH,hour:new Date(dtMs).getUTCHours(),dtMs});
     }
   });
 
   let nowCardEl=null;
-  allHours.forEach(({iso,idx,diffH,hour,dt})=>{
+  allHours.forEach(({iso,idx,diffH,hour,dtMs})=>{
     const isNow=diffH===0;
     const isPast=diffH<0;
     const isFuture=diffH>0;
@@ -369,23 +374,17 @@ function renderMain(data){
         weatherCode=tempC<=0?77:51; // snow grains or drizzle
       }
     }
-    const[ic]=wmoForHour(weatherCode, dt.getTime(), daily);
+    const[ic]=wmoForHour(weatherCode, dtMs, daily);
 
     const card=document.createElement('div');
     card.className='hr-card '+(isNow?'now':isPast?'past':'future');
-
-    // For past hours we show "actual" tag; for future "forecast"
-    // We also show a mini comparison for past: actual temp vs what was "forecast" at that model step
-    // Since we only have one data stream (the model analysis), we approximate:
-    //   actual = temperature_2m (model analysis / observed)
-    //   We show precipitation probability as the "forecast signal"
 
     let inner='';
     if(isNow) inner+=`<div class="now-pip">Now</div>`;
 
     // Date label for hours that cross midnight
-    const dayLabel=dt.toLocaleDateString('en-US',{weekday:'short'});
-    const todLabel=localISO(dt)===tod?'':dayLabel+' ';
+    const dayLabel=dayS(iso.slice(0,10));
+    const todLabel=iso.slice(0,10)===tod?'':dayLabel+' ';
     inner+=`<div class="hr-time">${todLabel}${fmt12(hour)}</div>`;
     inner+=`<div class="hr-icon">${ic}</div>`;
     inner+=`<div class="hr-temp">${fn(temp)}<span style="font-size:12px;color:var(--muted)">°</span></div>`;
@@ -452,18 +451,62 @@ function renderMain(data){
   });
 }
 
+// ---- DEV MODE — set to true to use fake data instead of live API ----
+const DEV_MODE = false;
+
+function makeFakeData(){
+  const now=new Date();
+  const daily={time:[],temperature_2m_max:[],temperature_2m_min:[],precipitation_sum:[],weathercode:[],windspeed_10m_max:[],precipitation_probability_max:[],sunrise:[],sunset:[]};
+  for(let i=-7;i<=7;i++){
+    const d=new Date(now); d.setDate(d.getDate()+i);
+    const iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    daily.time.push(iso);
+    daily.temperature_2m_max.push(18+Math.sin(i)*3);
+    daily.temperature_2m_min.push(10+Math.sin(i)*2);
+    daily.precipitation_sum.push(i%3===0?2.4:0);
+    daily.weathercode.push(i%3===0?61:i%5===0?2:0);
+    daily.windspeed_10m_max.push(15+i);
+    daily.precipitation_probability_max.push(i%3===0?70:10);
+    daily.sunrise.push(iso+'T06:20');
+    daily.sunset.push(iso+'T19:45');
+  }
+  const hourly={time:[],temperature_2m:[],precipitation_probability:[],weathercode:[],precipitation:[]};
+  const startH=new Date(now); startH.setHours(startH.getHours()-30,0,0,0);
+  for(let i=0;i<55;i++){
+    const h=new Date(startH); h.setHours(h.getHours()+i);
+    const iso=h.getFullYear()+'-'+String(h.getMonth()+1).padStart(2,'0')+'-'+String(h.getDate()).padStart(2,'0')+'T'+String(h.getHours()).padStart(2,'0')+':00';
+    hourly.time.push(iso);
+    hourly.temperature_2m.push(14+Math.sin(i/4)*5);
+    hourly.precipitation_probability.push(i%8===0?60:5);
+    hourly.weathercode.push(i%8===0?61:h.getHours()<6||h.getHours()>20?1:0);
+    hourly.precipitation.push(i%8===0?0.8:0);
+  }
+  return{daily,hourly,histFc:null,lat:37.7749,lon:-122.4194};
+}
+
+function wxCacheKey(lat,lon){return`wx_${lat.toFixed(2)}_${lon.toFixed(2)}`;}
+function saveWxCache(key,data){try{localStorage.setItem(key,JSON.stringify({...data,_ts:Date.now()}));}catch(e){}}
+function loadWxCache(key){try{const s=localStorage.getItem(key);return s?JSON.parse(s):null;}catch{return null;}}
+
 async function fetchWeather(lat,lon){
+  if(DEV_MODE){setStatus('Dev mode — using fake data');return makeFakeData();}
   setStatus('Fetching weather…');
   const df='temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,windspeed_10m_max,precipitation_probability_max,sunrise,sunset';
   const hf='temperature_2m,precipitation_probability,weathercode,precipitation';
   // Use 3 days back to catch the full -12h window in any timezone
   const ago3=offsetISO(-3), tom1=offsetISO(1);
 
-  const [mainRes, histFcRes] = await Promise.all([
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=${df}&hourly=${hf}&past_days=7&forecast_days=7&timezone=auto`),
-    fetch(`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,weathercode&start_date=${ago3}&end_date=${tom1}&models=gfs_seamless&timezone=auto`)
-      .catch(e=>{console.warn('Historical forecast API failed:',e);return null;})
-  ]);
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),10000);
+
+  let mainRes, histFcRes;
+  try{
+    [mainRes, histFcRes] = await Promise.all([
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=${df}&hourly=${hf}&past_days=7&forecast_days=7&timezone=auto`,{signal:ctrl.signal}),
+      fetch(`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,weathercode&start_date=${ago3}&end_date=${tom1}&models=gfs_seamless&timezone=auto`,{signal:ctrl.signal})
+        .catch(e=>{console.warn('Historical forecast API failed:',e);return null;})
+    ]);
+  }finally{clearTimeout(tid);}
 
   if(!mainRes.ok) throw new Error(`HTTP ${mainRes.status}`);
   const data = await mainRes.json();
@@ -480,7 +523,9 @@ async function fetchWeather(lat,lon){
     }catch(e){console.warn('Historical forecast parse failed:',e);}
   }
 
-  return{daily:data.daily, hourly:data.hourly, histFc, lat, lon};
+  const result={daily:data.daily, hourly:data.hourly, histFc, lat, lon, utcOffsetSec:data.utc_offset_seconds||0};
+  saveWxCache(wxCacheKey(lat,lon),result);
+  return result;
 }
 
 async function loadCity(lat,lon,name,cc){
@@ -497,7 +542,18 @@ async function loadCity(lat,lon,name,cc){
     showMain();
   }catch(e){
     console.error(e);
-    showErr(e.message);
+    const cached=loadWxCache(wxCacheKey(lat,lon));
+    if(cached){
+      renderAll(cached);
+      const hrs=Math.round((Date.now()-cached._ts)/3600000);
+      const age=hrs<1?'less than an hour':hrs===1?'1 hour':`${hrs} hours`;
+      const el=document.getElementById('updated-ts');
+      if(el)el.textContent=`Cached data from ${age} ago — API unavailable`;
+      showMain();
+    }else{
+      const isNetworkErr=e instanceof TypeError&&e.message.toLowerCase().includes('fetch')||e.name==='AbortError';
+      showErr(isNetworkErr?'Weather data is currently unavailable. Open-Meteo may be down — please try again in a few minutes.':e.message);
+    }
   }
 }
 
@@ -590,15 +646,15 @@ function isBayArea(lat,lon){
   return inBox||isMontereyCarmel;
 }
 
-function calcForecastMaxError(hourly,histFc){
+function calcForecastMaxError(hourly,histFc,utcOffsetSec){
   if(!histFc||!histFc.temperature_2m) return null;
-  const nowMs=Date.now();
+  const nowMs=cityNowMs(utcOffsetSec??0);
   const startMs=nowMs-12*3600000;
   const fcMap={};
   histFc.time.forEach((t,i)=>{fcMap[t.substring(0,16)]=histFc.temperature_2m[i];});
   let maxError=null;
   hourly.time.forEach((t,i)=>{
-    const ms=new Date(t).getTime();
+    const ms=localMs(t);
     if(ms<startMs||ms>nowMs) return;
     const fcTemp=fcMap[t.substring(0,16)];
     const actual=hourly.temperature_2m[i];
