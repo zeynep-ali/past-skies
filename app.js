@@ -428,6 +428,7 @@ function renderMain(data){
       `<div class="past-avg">${fn(av)}°</div>`+
       `<div class="past-range">${fn(mn)}° – ${fn(mx)}°</div>`+
       (pr>0?`<div class="past-pr">💧 ${pr.toFixed(1)} mm</div>`:'');
+    c.addEventListener('click',()=>openDaySheet(iso));
     ps.appendChild(c);
   });
   setTimeout(()=>{ps.scrollLeft=ps.scrollWidth;},120);
@@ -493,8 +494,7 @@ async function fetchWeather(lat,lon){
   setStatus('Fetching weather…');
   const df='temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,windspeed_10m_max,precipitation_probability_max,sunrise,sunset';
   const hf='temperature_2m,precipitation_probability,weathercode,precipitation';
-  // Use 3 days back to catch the full -12h window in any timezone
-  const ago3=offsetISO(-3), tom1=offsetISO(1);
+  const ago7=offsetISO(-7), tom1=offsetISO(1);
 
   const ctrl=new AbortController();
   const tid=setTimeout(()=>ctrl.abort(),10000);
@@ -503,7 +503,7 @@ async function fetchWeather(lat,lon){
   try{
     [mainRes, histFcRes] = await Promise.all([
       fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=${df}&hourly=${hf}&past_days=7&forecast_days=7&timezone=auto`,{signal:ctrl.signal}),
-      fetch(`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,weathercode&start_date=${ago3}&end_date=${tom1}&models=gfs_seamless&timezone=auto`,{signal:ctrl.signal})
+      fetch(`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,weathercode&start_date=${ago7}&end_date=${tom1}&models=gfs_seamless&timezone=auto`,{signal:ctrl.signal})
         .catch(e=>{console.warn('Historical forecast API failed:',e);return null;})
     ]);
   }finally{clearTimeout(tid);}
@@ -536,8 +536,7 @@ async function loadCity(lat,lon,name,cc){
   try{
     const data=await fetchWeather(lat,lon);
     renderAll(data);
-    const tl=document.getElementById('tagline');
-    if(tl&&tl.classList.contains('visible')){tl.classList.remove('visible');localStorage.setItem('ps_seen','1');}
+    saveTomorrowForecast(lat,lon,data);
     const now=new Date();
     const ts=now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
     if(el)el.textContent=`Updated ${ts}`;
@@ -612,6 +611,88 @@ document.getElementById('gpsbtn').addEventListener('click',()=>{
   );
 });
 
+function saveTomorrowForecast(lat,lon,data){
+  const tomorrow=offsetISO(1);
+  const key=`ps_fc_${lat.toFixed(2)}_${lon.toFixed(2)}_${tomorrow}`;
+  if(localStorage.getItem(key))return;
+  const temps={};
+  data.hourly.time.forEach((t,i)=>{
+    if(!t.startsWith(tomorrow))return;
+    const temp=data.hourly.temperature_2m[i];
+    if(temp!=null)temps[parseInt(t.slice(11,13))]=temp;
+  });
+  if(Object.keys(temps).length<12)return;
+  try{localStorage.setItem(key,JSON.stringify(temps));}catch(e){}
+}
+function openDaySheet(iso){
+  if(!rawData)return;
+  const{daily}=rawData;
+  const di=daily.time.indexOf(iso);
+  if(di===-1)return;
+  const[ic,ds]=wmo(daily.weathercode[di]);
+  const mx=daily.temperature_2m_max[di],mn=daily.temperature_2m_min[di];
+  document.getElementById('day-sheet-title').textContent=dayS(iso)+' · '+monD(iso);
+  document.getElementById('day-sheet-meta').innerHTML=`<span style="font-size:20px">${ic}</span><span>${ds}</span><span style="margin-left:auto;font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--text)">${fn((mx+mn)/2)}°</span><span style="font-size:11px">${ft(mx)} / ${ft(mn)}</span>`;
+  renderDayChart(iso);
+  document.getElementById('day-backdrop').classList.add('open');
+  document.getElementById('day-sheet').classList.add('open');
+}
+function closeDaySheet(){
+  document.getElementById('day-backdrop').classList.remove('open');
+  document.getElementById('day-sheet').classList.remove('open');
+}
+function renderDayChart(iso){
+  const body=document.getElementById('day-chart-body');
+  const note=document.getElementById('day-chart-note');
+  if(!body||!rawData)return;
+  const{hourly}=rawData;
+  const actualPts=[];
+  hourly.time.forEach((t,i)=>{
+    if(!t.startsWith(iso))return;
+    const temp=hourly.temperature_2m[i];
+    if(temp!=null)actualPts.push({ms:localMs(t),temp,hr:parseInt(t.slice(11,13))});
+  });
+  const gfsPts=[];
+  const savedFc=localStorage.getItem(`ps_fc_${rawData.lat.toFixed(2)}_${rawData.lon.toFixed(2)}_${iso}`);
+  if(savedFc){
+    try{
+      const startMs=localMs(iso+'T00:00');
+      Object.entries(JSON.parse(savedFc)).forEach(([hr,temp])=>{
+        const h=parseInt(hr);
+        gfsPts.push({ms:startMs+h*3600000,temp,hr:h});
+      });
+      gfsPts.sort((a,b)=>a.hr-b.hr);
+    }catch(e){}
+  }
+  if(!actualPts.length){body.innerHTML='<div class="chart-loading">No data for this day</div>';return;}
+  const allT=[...actualPts,...gfsPts].map(p=>FAH?c2f(p.temp):p.temp);
+  const minT=Math.min(...allT)-1.5,maxT=Math.max(...allT)+1.5;
+  const startMs=localMs(iso+'T00:00');
+  const endMs=startMs+24*3600000;
+  const W=400,H=110,PL=30,PR=8,PT=10,PB=20;
+  const cW=W-PL-PR,cH=H-PT-PB;
+  const xS=ms=>PL+((ms-startMs)/(endMs-startMs))*cW;
+  const yS=t=>PT+(1-((FAH?c2f(t):t)-minT)/(maxT-minT))*cH;
+  const mkPath=pts=>pts.length<2?'':pts.map((p,i)=>`${i===0?'M':'L'}${xS(p.ms).toFixed(1)},${yS(p.temp).toFixed(1)}`).join(' ');
+  const spread=maxT-minT;const step=spread>12?4:spread>6?2:1;const tickStart=Math.ceil(minT/step)*step;
+  const yTicks=[];for(let t=tickStart;t<=maxT;t+=step)yTicks.push(t);
+  const xTicks=[0,6,12,18].map(h=>({ms:startMs+h*3600000,label:fmt12(h)}));
+  let maxErr=null;
+  if(gfsPts.length){
+    const fcMap={};gfsPts.forEach(p=>fcMap[p.hr]=p.temp);
+    actualPts.forEach(p=>{const fc=fcMap[p.hr];if(fc!=null){const err=Math.abs(p.temp-fc);if(maxErr===null||err>maxErr)maxErr=err;}});
+  }
+  body.innerHTML=`<svg class="chart-svg" viewBox="0 0 ${W} ${H}">
+    ${yTicks.map(t=>`<line x1="${PL}" y1="${yS(FAH?c2f(t):t).toFixed(1)}" x2="${W-PR}" y2="${yS(FAH?c2f(t):t).toFixed(1)}" stroke="rgba(255,255,255,0.04)" stroke-width="1"/><text x="${PL-4}" y="${(yS(FAH?c2f(t):t)+3).toFixed(1)}" fill="rgba(255,255,255,0.22)" font-size="7.5" text-anchor="end">${Math.round(FAH?c2f(t):t)}°</text>`).join('')}
+    ${gfsPts.length>1?`<path d="${mkPath(gfsPts)}" stroke="rgba(220,100,160,0.85)" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>`:''}
+    ${actualPts.length>1?`<path d="${mkPath(actualPts)} L${xS(actualPts[actualPts.length-1].ms).toFixed(1)},${H-PB} L${xS(actualPts[0].ms).toFixed(1)},${H-PB}Z" fill="rgba(77,217,192,0.07)"/><path d="${mkPath(actualPts)}" stroke="#4dd9c0" stroke-width="2" fill="none"/>`:''}
+    ${xTicks.map(t=>`<text x="${xS(t.ms).toFixed(1)}" y="${H-PB+13}" fill="rgba(255,255,255,0.2)" font-size="7.5" text-anchor="middle">${t.label}</text>`).join('')}
+  </svg>`;
+  const hasGFS=gfsPts.length>1;
+  if(hasGFS&&maxErr!==null){const errStr=FAH?`${Math.round(maxErr*9/5)}°F`:`${maxErr.toFixed(1)}°C`;note.textContent=`Teal = actual · Pink = GFS forecast · max ${errStr} off`;}
+  else if(hasGFS){note.textContent='Teal = actual · Pink dashed = GFS forecast';}
+  else{note.textContent='Forecast snapshot not available — open the app the day before to capture it';}
+}
 function showLoad(){}
 function showMain(){document.getElementById('loader').classList.add('gone');document.getElementById('main').style.display='block';}
 function showErr(msg){
@@ -635,10 +716,8 @@ async function init(){
   track('pageview');
   updateToggleUI();
   showSkeleton();
-  if(!localStorage.getItem('ps_seen')){
-    const tl=document.getElementById('tagline');
-    if(tl)setTimeout(()=>tl.classList.add('visible'),50);
-  }
+  const tl=document.getElementById('tagline');
+  if(tl)setTimeout(()=>tl.classList.add('visible'),50);
   if(!navigator.geolocation){loadCity(37.7749,-122.4194,'San Francisco','US');return;}
   navigator.geolocation.getCurrentPosition(
     async p=>{const{latitude:lat,longitude:lon}=p.coords;const{city,cc}=await revGeo(lat,lon);loadCity(lat,lon,city,cc);},

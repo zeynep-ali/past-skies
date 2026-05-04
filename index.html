@@ -91,13 +91,15 @@
   <div class="content" id="main" style="display:none">
     <div class="header">
       <div class="brand-bar">
-        <div class="brand-name"><span class="brand-dot"></span>Past Skies</div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <div class="brand-name"><span class="brand-dot"></span>Past Skies</div>
+          <div id="tagline" class="tagline">What the weather was</div>
+        </div>
         <div class="unit-toggle" id="unit-toggle" onclick="toggleUnit()">
           <div class="unit-opt" id="opt-f">°F</div>
           <div class="unit-opt" id="opt-c">°C</div>
         </div>
       </div>
-      <div id="tagline" class="tagline">What the weather was.</div>
       <div class="swrap" id="swrap">
         <input class="sinput" id="si" type="text" placeholder="Search any city…" autocomplete="off">
         <button class="sbtn" id="sb">↗</button>
@@ -239,6 +241,23 @@
       </div>
 
       <button class="info-close" onclick="closeInfo()">Got it</button>
+    </div>
+
+    <!-- Day detail sheet -->
+    <div class="info-backdrop" id="day-backdrop" onclick="closeDaySheet()"></div>
+    <div class="info-sheet" id="day-sheet">
+      <div class="info-handle"></div>
+      <div class="info-title" id="day-sheet-title"></div>
+      <div id="day-sheet-meta" style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin-bottom:16px;"></div>
+      <div class="chart-card">
+        <div class="chart-legend">
+          <div class="cleg"><div class="cleg-swatch" style="border-top:2px solid #4dd9c0"></div>Actual</div>
+          <div class="cleg"><div class="cleg-swatch" style="border-top:2px dashed rgba(220,100,160,0.8)"></div>GFS forecast</div>
+        </div>
+        <div id="day-chart-body"><div class="chart-loading">Loading…</div></div>
+        <div class="chart-note" id="day-chart-note"></div>
+      </div>
+      <button class="info-close" onclick="closeDaySheet()">Close</button>
     </div>
 
     <!-- Past 7 days -->
