@@ -247,3 +247,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
   font-size:11px;font-weight:600;padding:4px 10px;border-radius:60px;
   font-family:'Outfit',sans-serif;letter-spacing:.04em;white-space:nowrap;
 }
+
+/* SKELETON */
+@keyframes skel-pulse{0%,100%{opacity:.45}50%{opacity:.18}}
+.skel{background:var(--glass2);animation:skel-pulse 1.4s ease-in-out infinite;}

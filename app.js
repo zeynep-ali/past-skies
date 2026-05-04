@@ -68,7 +68,7 @@ function cityDateStr(off,n){const d=new Date(Date.now()+(off||0)*1000+(n||0)*864
 function dayS(iso){return new Date(iso+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'});}
 function monD(iso){return new Date(iso+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});}
 function fmt12(h){return(h%12||12)+(h>=12?' pm':' am');}
-function setStatus(t){const e=document.getElementById('lstatus');if(e)e.textContent=t;}
+function setStatus(t){const e=document.getElementById('updated-ts');if(e)e.textContent=t;}
 
 function renderAll(data){
   rawData=data;
@@ -529,17 +529,16 @@ async function fetchWeather(lat,lon){
 }
 
 async function loadCity(lat,lon,name,cc){
-  showLoad();
   document.getElementById('ln').textContent=name||'Your Location';
   document.getElementById('lcc').textContent=cc||'';
+  const el=document.getElementById('updated-ts');
+  if(el)el.textContent='Loading…';
   try{
     const data=await fetchWeather(lat,lon);
     renderAll(data);
     const now=new Date();
     const ts=now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    const el=document.getElementById('updated-ts');
     if(el)el.textContent=`Updated ${ts}`;
-    showMain();
   }catch(e){
     console.error(e);
     const cached=loadWxCache(wxCacheKey(lat,lon));
@@ -547,9 +546,7 @@ async function loadCity(lat,lon,name,cc){
       renderAll(cached);
       const hrs=Math.round((Date.now()-cached._ts)/3600000);
       const age=hrs<1?'less than an hour':hrs===1?'1 hour':`${hrs} hours`;
-      const el=document.getElementById('updated-ts');
       if(el)el.textContent=`Cached data from ${age} ago — API unavailable`;
-      showMain();
     }else{
       const isNetworkErr=e instanceof TypeError&&e.message.toLowerCase().includes('fetch')||e.name==='AbortError';
       showErr(isNetworkErr?'Weather data is currently unavailable. Open-Meteo may be down — please try again in a few minutes.':e.message);
@@ -606,8 +603,6 @@ document.addEventListener('click',e=>{if(!document.getElementById('swrap').conta
 document.getElementById('gpsbtn').addEventListener('click',()=>{
   if(!navigator.geolocation)return;
   track('gps_used');
-  showLoad();
-  setStatus('Getting GPS…');
   navigator.geolocation.getCurrentPosition(
     async p=>{const{latitude:lat,longitude:lon}=p.coords;const{city,cc}=await revGeo(lat,lon);loadCity(lat,lon,city,cc);},
     ()=>loadCity(37.7749,-122.4194,'San Francisco','US'),
@@ -615,23 +610,33 @@ document.getElementById('gpsbtn').addEventListener('click',()=>{
   );
 });
 
-function showLoad(){document.getElementById('loader').classList.remove('gone');document.getElementById('main').style.display='none';document.getElementById('ea').innerHTML='';}
+function showLoad(){}
 function showMain(){document.getElementById('loader').classList.add('gone');document.getElementById('main').style.display='block';}
 function showErr(msg){
   document.getElementById('loader').classList.add('gone');
+  document.getElementById('main').style.display='none';
   document.getElementById('ea').innerHTML=`<div class="err-wrap"><div class="err-i">⛅</div><div class="err-t">Couldn't load</div><div class="err-m">${msg||'Check your connection and try again.'}</div><button class="err-btn" onclick="init()">Retry</button></div>`;
 }
-
+function showSkeleton(){
+  document.getElementById('loader').classList.add('gone');
+  document.getElementById('main').style.display='block';
+  document.getElementById('ln').textContent='Locating…';
+  document.getElementById('lcc').textContent='';
+  const hr=`<div class="hr-card past" style="pointer-events:none;gap:8px"><div class="skel" style="width:38px;height:10px;border-radius:3px"></div><div class="skel" style="width:24px;height:24px;border-radius:4px;margin:4px 0"></div><div class="skel" style="width:34px;height:22px;border-radius:3px"></div><div class="skel" style="width:28px;height:8px;border-radius:3px;margin-top:4px"></div></div>`;
+  document.getElementById('hscroll').innerHTML=Array(8).fill(hr).join('');
+  const pc=`<div class="past-card" style="pointer-events:none"><div class="skel" style="width:54px;height:9px;border-radius:3px;display:block;margin:0 auto 8px"></div><div class="skel" style="width:28px;height:28px;border-radius:4px;display:block;margin:0 auto 7px"></div><div class="skel" style="width:36px;height:22px;border-radius:3px;display:block;margin:0 auto 3px"></div><div class="skel" style="width:54px;height:9px;border-radius:3px;display:block;margin:0 auto"></div></div>`;
+  document.getElementById('pscroll').innerHTML=Array(7).fill(pc).join('');
+  const fc=`<div class="fc-row" style="pointer-events:none"><div class="fc-dc"><div class="skel" style="width:32px;height:12px;border-radius:3px;margin-bottom:3px"></div><div class="skel" style="width:22px;height:9px;border-radius:3px"></div></div><div class="skel" style="width:24px;height:24px;border-radius:4px;flex-shrink:0"></div><div class="skel fc-ds" style="height:11px;border-radius:3px"></div><div style="min-width:34px"></div><div class="fc-tc"><div class="skel" style="width:26px;height:18px;border-radius:3px;margin-left:auto;margin-bottom:2px"></div><div class="skel" style="width:18px;height:10px;border-radius:3px;margin-left:auto"></div></div></div>`;
+  document.getElementById('fclist').innerHTML=Array(7).fill(fc).join('');
+}
 async function init(){
   track('pageview');
   updateToggleUI();
-  showLoad();
-  setStatus('Starting up…');
+  showSkeleton();
   if(!navigator.geolocation){loadCity(37.7749,-122.4194,'San Francisco','US');return;}
-  setStatus('Getting GPS position…');
   navigator.geolocation.getCurrentPosition(
     async p=>{const{latitude:lat,longitude:lon}=p.coords;const{city,cc}=await revGeo(lat,lon);loadCity(lat,lon,city,cc);},
-    ()=>{setStatus('No GPS — using San Francisco');loadCity(37.7749,-122.4194,'San Francisco','US');},
+    ()=>loadCity(37.7749,-122.4194,'San Francisco','US'),
     {timeout:10000,maximumAge:60000}
   );
 }
