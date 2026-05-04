@@ -536,6 +536,8 @@ async function loadCity(lat,lon,name,cc){
   try{
     const data=await fetchWeather(lat,lon);
     renderAll(data);
+    const tl=document.getElementById('tagline');
+    if(tl&&tl.classList.contains('visible')){tl.classList.remove('visible');localStorage.setItem('ps_seen','1');}
     const now=new Date();
     const ts=now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
     if(el)el.textContent=`Updated ${ts}`;
@@ -633,6 +635,10 @@ async function init(){
   track('pageview');
   updateToggleUI();
   showSkeleton();
+  if(!localStorage.getItem('ps_seen')){
+    const tl=document.getElementById('tagline');
+    if(tl)setTimeout(()=>tl.classList.add('visible'),50);
+  }
   if(!navigator.geolocation){loadCity(37.7749,-122.4194,'San Francisco','US');return;}
   navigator.geolocation.getCurrentPosition(
     async p=>{const{latitude:lat,longitude:lon}=p.coords;const{city,cc}=await revGeo(lat,lon);loadCity(lat,lon,city,cc);},

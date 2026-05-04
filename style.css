@@ -248,6 +248,10 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
   font-family:'Outfit',sans-serif;letter-spacing:.04em;white-space:nowrap;
 }
 
+/* TAGLINE */
+.tagline{font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:300;font-size:15px;color:var(--muted);letter-spacing:.03em;max-height:0;opacity:0;overflow:hidden;margin-bottom:0;transition:opacity .5s ease,max-height .5s ease,margin-bottom .5s ease;}
+.tagline.visible{max-height:40px;opacity:1;margin-bottom:16px;}
+
 /* SKELETON */
 @keyframes skel-pulse{0%,100%{opacity:.45}50%{opacity:.18}}
 .skel{background:var(--glass2);animation:skel-pulse 1.4s ease-in-out infinite;}
