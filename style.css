@@ -67,6 +67,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .hero-unit{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--muted);margin-top:8px;}
 .hero-icon-sm{font-size:20px;line-height:1;}
 .hero-cond{font-size:13px;font-weight:300;color:var(--text);}
+.hero-feels{font-size:11px;color:var(--muted);margin-top:4px;}
 .hero-divider{margin:14px 0 10px;height:1px;background:var(--border);}
 .hero-mini-stats{display:flex;flex-direction:column;gap:6px;}
 .mini-stat{}

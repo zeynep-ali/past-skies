@@ -198,7 +198,7 @@ function renderPrecipChart(data){
   </svg>`;
 
   const hasPastGFS=gfsPastPts.some(p=>p.val>0.01);
-  note.textContent=hasPastGFS?'Teal = recorded rain · Pink = what GFS predicted':'GFS past forecast unavailable';
+  note.textContent=hasPastGFS?'Pink = what GFS predicted · Teal = recorded rain':'GFS past forecast not available';
 }
 
 function renderChart(data){
@@ -311,10 +311,15 @@ function renderMain(data){
   const yMax=daily.temperature_2m_max[si],yMin=daily.temperature_2m_min[si],yAvg=(yMax+yMin)/2;
   const[yIc,yDs]=wmo(daily.weathercode[si]);
   const yPr=daily.precipitation_sum[si]||0,yWi=daily.windspeed_10m_max[si]||0;
+  // Yesterday feels like: average apparent temp for that day
+  const yFeelsVals=[];
+  hourly.time.forEach((t,i)=>{if(t.slice(0,10)===yest){const at=hourly.apparent_temperature?.[i];if(at!=null)yFeelsVals.push(at);}});
+  const yFeels=yFeelsVals.length?yFeelsVals.reduce((a,b)=>a+b,0)/yFeelsVals.length:null;
   document.getElementById('yt').textContent=fn(yAvg);
   document.getElementById('yu').textContent=FAH?'°F':'°C';
   document.getElementById('yi').textContent=yIc;
   document.getElementById('yd').textContent=yDs;
+  document.getElementById('y-feels').textContent=yFeels!=null?`Felt ${ft(yFeels)}`:'';
   document.getElementById('y-range').textContent=`${ft(yMax)} / ${ft(yMin)}`;
   document.getElementById('y-precip').textContent=`${yPr.toFixed(1)} mm`;
   document.getElementById('y-wind').textContent=`${Math.round(yWi)} km/h`;
@@ -325,10 +330,18 @@ function renderMain(data){
     const tMax=daily.temperature_2m_max[ti],tMin=daily.temperature_2m_min[ti],tAvg=(tMax+tMin)/2;
     const[tIc,tDs]=wmo(daily.weathercode[ti]);
     const tPr=daily.precipitation_sum[ti]||0,tWi=daily.windspeed_10m_max[ti]||0;
+    // Today feels like: most recent past hour's apparent temp, or next hour if early morning
+    const nowMs=cityNowMs(off);
+    let tdFeels=null;
+    hourly.time.forEach((t,i)=>{
+      if(t.slice(0,10)===tod){const at=hourly.apparent_temperature?.[i];if(at!=null&&localMs(t)<=nowMs)tdFeels=at;}
+    });
+    if(tdFeels===null){const next=hourly.time.findIndex(t=>t.slice(0,10)===tod);if(next>=0){const at=hourly.apparent_temperature?.[next];if(at!=null)tdFeels=at;}}
     document.getElementById('td-temp').textContent=fn(tAvg);
     document.getElementById('td-unit').textContent=FAH?'°F':'°C';
     document.getElementById('td-icon').textContent=tIc;
     document.getElementById('td-cond').textContent=tDs;
+    document.getElementById('td-feels').textContent=tdFeels!=null?`Feels ${ft(tdFeels)}`:'';
     document.getElementById('td-range').textContent=`${ft(tMax)} / ${ft(tMin)}`;
     document.getElementById('td-precip').textContent=`${tPr.toFixed(1)} mm`;
     document.getElementById('td-wind').textContent=`${Math.round(tWi)} km/h`;
@@ -493,7 +506,7 @@ async function fetchWeather(lat,lon){
   if(DEV_MODE){setStatus('Dev mode — using fake data');return makeFakeData();}
   setStatus('Fetching weather…');
   const df='temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode,windspeed_10m_max,precipitation_probability_max,sunrise,sunset';
-  const hf='temperature_2m,precipitation_probability,weathercode,precipitation';
+  const hf='temperature_2m,apparent_temperature,precipitation_probability,weathercode,precipitation';
   const ago7=offsetISO(-7), tom1=offsetISO(1);
 
   const ctrl=new AbortController();
@@ -751,7 +764,7 @@ async function renderDayChart(iso){
   const hasGFS=gfsPts.length>1;
   if(hasGFS&&maxErr!==null){const errStr=FAH?`${Math.round(maxErr*9/5)}°F`:`${maxErr.toFixed(1)}°C`;note.textContent=`Teal = actual · Pink = GFS forecast · max ${errStr} off`;}
   else if(hasGFS){note.textContent='Teal = actual · Pink dashed = GFS forecast';}
-  else{note.textContent='Forecast snapshot unavailable';}
+  else{note.textContent='Forecast snapshot not available';}
 }
 function showLoad(){}
 function showMain(){document.getElementById('loader').classList.add('gone');document.getElementById('main').style.display='block';}
