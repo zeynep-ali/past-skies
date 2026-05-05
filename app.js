@@ -718,7 +718,7 @@ async function buildAndShareCard(city, dateStr, ic, ds, mx, mn, tempSvgEl, preci
     ctx.fillText('past-skies.com · what the weather was',CARD_W/2,y+12);
 
     canvas.toBlob(async blob=>{
-      if(btn){btn.textContent='Share ↗';btn.disabled=false;}
+      if(btn){btn.textContent='Share ↗︎';btn.disabled=false;}
       const file=new File([blob],filename,{type:'image/png'});
       if(navigator.share&&navigator.canShare?.({files:[file]})){
         navigator.share({files:[file],title:`Past Skies — ${city} ${dateStr}`}).catch(()=>{});
@@ -733,7 +733,7 @@ async function buildAndShareCard(city, dateStr, ic, ds, mx, mn, tempSvgEl, preci
     return true;
   }catch(e){
     console.error('Share image failed',e);
-    if(btn){btn.textContent='Share ↗';btn.disabled=false;}
+    if(btn){btn.textContent='Share ↗︎';btn.disabled=false;}
     return false;
   }
 }
