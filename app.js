@@ -615,14 +615,15 @@ function saveTomorrowForecast(lat,lon,data){
   const tomorrow=offsetISO(1);
   const key=`ps_fc_${lat.toFixed(2)}_${lon.toFixed(2)}_${tomorrow}`;
   if(localStorage.getItem(key))return;
-  const temps={};
+  const temp={};const precip={};
   data.hourly.time.forEach((t,i)=>{
     if(!t.startsWith(tomorrow))return;
-    const temp=data.hourly.temperature_2m[i];
-    if(temp!=null)temps[parseInt(t.slice(11,13))]=temp;
+    const hr=parseInt(t.slice(11,13));
+    if(data.hourly.temperature_2m[i]!=null)temp[hr]=data.hourly.temperature_2m[i];
+    if(data.hourly.precipitation?.[i]!=null)precip[hr]=data.hourly.precipitation[i];
   });
-  if(Object.keys(temps).length<12)return;
-  try{localStorage.setItem(key,JSON.stringify(temps));}catch(e){}
+  if(Object.keys(temp).length<12)return;
+  try{localStorage.setItem(key,JSON.stringify({temp,precip}));}catch(e){}
 }
 function openDaySheet(iso){
   if(!rawData)return;
@@ -665,10 +666,14 @@ async function renderDayChart(iso){
     }catch(e){}
   }
   const gfsPts=[];
+  let fcPrecip=null;
   if(fcJSON){
     try{
       const startMs=localMs(iso+'T00:00');
-      Object.entries(JSON.parse(fcJSON)).forEach(([hr,temp])=>{
+      const parsed=JSON.parse(fcJSON);
+      const tempMap=parsed.temp||parsed; // handle old flat format
+      fcPrecip=parsed.precip||null;
+      Object.entries(tempMap).forEach(([hr,temp])=>{
         const h=parseInt(hr);
         gfsPts.push({ms:startMs+h*3600000,temp:+temp,hr:h});
       });
@@ -699,6 +704,50 @@ async function renderDayChart(iso){
     ${actualPts.length>1?`<path d="${mkPath(actualPts)} L${xS(actualPts[actualPts.length-1].ms).toFixed(1)},${H-PB} L${xS(actualPts[0].ms).toFixed(1)},${H-PB}Z" fill="rgba(77,217,192,0.07)"/><path d="${mkPath(actualPts)}" stroke="#4dd9c0" stroke-width="2" fill="none"/>`:''}
     ${xTicks.map(t=>`<text x="${xS(t.ms).toFixed(1)}" y="${H-PB+13}" fill="rgba(255,255,255,0.2)" font-size="7.5" text-anchor="middle">${t.label}</text>`).join('')}
   </svg>`;
+  // Precipitation chart
+  const precipOuter=document.getElementById('day-precip-outer');
+  const precipBody=document.getElementById('day-precip-body');
+  const precipNote=document.getElementById('day-precip-note');
+  if(precipOuter&&precipBody){
+    const actualPrecipPts=[];
+    hourly.time.forEach((t,i)=>{
+      if(!t.startsWith(iso))return;
+      const val=hourly.precipitation?.[i]||0;
+      actualPrecipPts.push({hr:parseInt(t.slice(11,13)),val});
+    });
+    const fcPrecipPts=fcPrecip?Object.entries(fcPrecip).map(([hr,val])=>({hr:parseInt(hr),val:+val})).sort((a,b)=>a.hr-b.hr):[];
+    const maxP=Math.max(...actualPrecipPts.map(p=>p.val),...fcPrecipPts.map(p=>p.val),0);
+    if(maxP<0.05){
+      precipOuter.style.display='none';
+    }else{
+      precipOuter.style.display='block';
+      const PW=400,PH=70,PPL=30,PPR=8,PPT=8,PPB=20;
+      const pcW=PW-PPL-PPR,pcH=PH-PPT-PPB;
+      const pxS=hr=>PPL+(hr/24)*pcW;
+      const pyS=v=>PPT+pcH-(v/maxP)*pcH;
+      const bW=Math.max(4,(pcW/24)*0.6);
+      let bars='';
+      fcPrecipPts.forEach(p=>{
+        if(p.val<0.01)return;
+        const x=pxS(p.hr+0.5);const barH=(p.val/maxP)*pcH;
+        bars+=`<rect x="${(x-bW+1).toFixed(1)}" y="${(PPT+pcH-barH).toFixed(1)}" width="${bW.toFixed(1)}" height="${barH.toFixed(1)}" fill="rgba(220,100,160,0.12)" stroke="rgba(220,100,160,0.7)" stroke-width="1" rx="1"/>`;
+      });
+      actualPrecipPts.forEach(p=>{
+        if(p.val<0.01)return;
+        const x=pxS(p.hr+0.5);const barH=(p.val/maxP)*pcH;
+        bars+=`<rect x="${(x-bW+1).toFixed(1)}" y="${(PPT+pcH-barH).toFixed(1)}" width="${bW.toFixed(1)}" height="${barH.toFixed(1)}" fill="#7abaef" rx="1"/>`;
+      });
+      const xLabels=[0,6,12,18].map(h=>`<text x="${pxS(h).toFixed(1)}" y="${PH-PPB+13}" fill="rgba(255,255,255,0.2)" font-size="7.5" text-anchor="middle">${fmt12(h)}</text>`).join('');
+      precipBody.innerHTML=`<svg class="chart-svg" viewBox="0 0 ${PW} ${PH}">
+        <line x1="${PPL}" y1="${PPT+pcH}" x2="${PW-PPR}" y2="${PPT+pcH}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+        <text x="${PPL-4}" y="${PPT+pcH+3}" fill="rgba(255,255,255,0.2)" font-size="7" text-anchor="end">0</text>
+        <text x="${PPL-4}" y="${(PPT+3).toFixed(1)}" fill="rgba(255,255,255,0.2)" font-size="7" text-anchor="end">${maxP.toFixed(1)}</text>
+        <text x="${PPL-10}" y="${(PPT+pcH/2).toFixed(1)}" fill="rgba(255,255,255,0.18)" font-size="7" text-anchor="middle" transform="rotate(-90,${PPL-10},${(PPT+pcH/2).toFixed(1)})">mm</text>
+        ${bars}${xLabels}
+      </svg>`;
+      precipNote.textContent=fcPrecipPts.some(p=>p.val>0.01)?'Blue = actual rain · Pink = what GFS predicted':'Actual recorded precipitation';
+    }
+  }
   const hasGFS=gfsPts.length>1;
   if(hasGFS&&maxErr!==null){const errStr=FAH?`${Math.round(maxErr*9/5)}°F`:`${maxErr.toFixed(1)}°C`;note.textContent=`Teal = actual · Pink = GFS forecast · max ${errStr} off`;}
   else if(hasGFS){note.textContent='Teal = actual · Pink dashed = GFS forecast';}
