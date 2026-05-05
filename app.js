@@ -639,18 +639,26 @@ function saveTomorrowForecast(lat,lon,data){
   try{localStorage.setItem(key,JSON.stringify({temp,precip}));}catch(e){}
 }
 let currentDayISO=null;
-function shareDaySheet(){
-  if(!rawData||!currentDayISO)return;
-  const iso=currentDayISO;
-  const city=document.getElementById('ln').textContent||'';
-  const{daily}=rawData;
-  const di=daily.time.indexOf(iso);
-  if(di===-1)return;
-  const mx=daily.temperature_2m_max[di],mn=daily.temperature_2m_min[di],av=(mx+mn)/2;
-  const[ic,ds]=wmo(daily.weathercode[di]);
-  const pr=daily.precipitation_sum[di]||0;
+
+function svgToImg(svgEl){
+  const vb=svgEl.getAttribute('viewBox').split(' ').map(Number);
+  const[,,vw,vh]=vb;
+  svgEl.setAttribute('width',vw);svgEl.setAttribute('height',vh);
+  const xml=new XMLSerializer().serializeToString(svgEl);
+  svgEl.removeAttribute('width');svgEl.removeAttribute('height');
+  const dataUrl='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(xml)));
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>res({img,w:vw,h:vh});
+    img.onerror=rej;
+    img.src=dataUrl;
+  });
+}
+
+function shareTextFallback(iso,city,ic,ds,mx,mn){
+  const pr=rawData.daily.precipitation_sum[rawData.daily.time.indexOf(iso)]||0;
   const dateStr=dayS(iso)+' '+monD(iso);
-  let text=`${city} · ${dateStr}\n${ic} ${ds}, ${ft(av)}`;
+  let text=`${city} · ${dateStr}\n${ic} ${ds}, ${ft((mx+mn)/2)}`;
   if(pr>0)text+=` · 💧 ${pr.toFixed(1)} mm`;
   text+=`\n\nPast Skies — what the weather was\nhttps://app.past-skies.com`;
   const btn=document.getElementById('day-share-btn');
@@ -660,6 +668,110 @@ function shareDaySheet(){
     navigator.clipboard.writeText(text).then(()=>{
       if(btn){const orig=btn.textContent;btn.textContent='Copied!';setTimeout(()=>btn.textContent=orig,2000);}
     }).catch(()=>{});
+  }
+}
+
+async function shareDaySheet(){
+  if(!rawData||!currentDayISO)return;
+  const iso=currentDayISO;
+  const city=document.getElementById('ln').textContent||'';
+  const{daily}=rawData;
+  const di=daily.time.indexOf(iso);
+  if(di===-1)return;
+  const[ic,ds]=wmo(daily.weathercode[di]);
+  const mx=daily.temperature_2m_max[di],mn=daily.temperature_2m_min[di];
+  const dateStr=dayS(iso)+' · '+monD(iso);
+
+  const tempSvg=document.querySelector('#day-chart-body svg');
+  if(!tempSvg){shareTextFallback(iso,city,ic,ds,mx,mn);return;}
+
+  const precipOuter=document.getElementById('day-precip-outer');
+  const precipSvg=precipOuter&&precipOuter.style.display!=='none'
+    ?document.querySelector('#day-precip-body svg'):null;
+
+  const btn=document.getElementById('day-share-btn');
+  if(btn){btn.textContent='…';btn.disabled=true;}
+
+  try{
+    const S=2,PX=20,CW=400,CARD_W=CW+PX*2;
+    const tempR=await svgToImg(tempSvg);
+    const precipR=precipSvg?await svgToImg(precipSvg):null;
+
+    // Measure card height
+    const rows=[
+      18,           // top gap
+      22,           // city
+      18,           // date
+      8,            // gap
+      28,           // weather line
+      14,           // gap
+      tempR.h,      // temp chart
+      ...(precipR?[8,precipR.h]:[]),
+      14,           // gap
+      16,           // footer
+      12,           // bottom gap
+    ];
+    const CARD_H=rows.reduce((s,h)=>s+h,0);
+
+    const canvas=document.createElement('canvas');
+    canvas.width=CARD_W*S;canvas.height=CARD_H*S;
+    const ctx=canvas.getContext('2d');
+    ctx.scale(S,S);
+
+    ctx.fillStyle='#080d18';
+    ctx.fillRect(0,0,CARD_W,CARD_H);
+
+    let y=0;
+    const adv=h=>{y+=h;};
+
+    adv(18);
+    ctx.font='bold 17px -apple-system,BlinkMacSystemFont,sans-serif';
+    ctx.fillStyle='rgba(255,255,255,0.9)';ctx.textAlign='left';
+    ctx.fillText(city,PX,y+16);adv(22);
+
+    ctx.font='12px -apple-system,BlinkMacSystemFont,sans-serif';
+    ctx.fillStyle='rgba(255,255,255,0.38)';
+    ctx.fillText(dateStr,PX,y+13);adv(18);
+
+    adv(8);
+    ctx.font='20px "Apple Color Emoji","Segoe UI Emoji",serif';
+    ctx.fillText(ic,PX,y+22);
+    ctx.font='11px -apple-system,BlinkMacSystemFont,sans-serif';
+    ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillText(ds,PX+28,y+12);
+    ctx.fillStyle='rgba(255,255,255,0.75)';ctx.font='bold 11px -apple-system,BlinkMacSystemFont,sans-serif';
+    ctx.fillText(`${ft(mx)} / ${ft(mn)}`,PX+28,y+26);adv(28);
+
+    adv(14);
+    ctx.drawImage(tempR.img,PX,y,CW,tempR.h);adv(tempR.h);
+
+    if(precipR){
+      adv(8);
+      ctx.drawImage(precipR.img,PX,y,CW,precipR.h);adv(precipR.h);
+    }
+
+    adv(14);
+    ctx.fillStyle='rgba(255,255,255,0.18)';
+    ctx.font='10px -apple-system,BlinkMacSystemFont,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('past-skies.com · what the weather was',CARD_W/2,y+12);
+
+    canvas.toBlob(async blob=>{
+      if(btn){btn.textContent='Share ↗';btn.disabled=false;}
+      const file=new File([blob],`past-skies-${iso}.png`,{type:'image/png'});
+      if(navigator.share&&navigator.canShare?.({files:[file]})){
+        navigator.share({files:[file],title:`Past Skies — ${city} ${dateStr}`}).catch(()=>{});
+      }else{
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download=`past-skies-${iso}.png`;
+        a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+      }
+    },'image/png');
+  }catch(e){
+    console.error('Share image failed',e);
+    if(btn){btn.textContent='Share ↗';btn.disabled=false;}
+    shareTextFallback(iso,city,ic,ds,mx,mn);
   }
 }
 function openDaySheet(iso){
