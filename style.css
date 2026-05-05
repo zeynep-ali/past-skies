@@ -148,7 +148,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 /* INFO MODAL */
 .info-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s;}
 .info-backdrop.open{opacity:1;pointer-events:all;}
-.info-sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:430px;background:var(--bg3);border:1px solid var(--border2);border-bottom:none;border-radius:24px 24px 0 0;padding:28px 24px 48px;z-index:201;transition:transform .3s cubic-bezier(.32,.72,0,1);}
+.info-sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:430px;background:var(--bg3);border:1px solid var(--border2);border-bottom:none;border-radius:24px 24px 0 0;padding:28px 24px 48px;z-index:201;transition:transform .3s cubic-bezier(.32,.72,0,1);max-height:85vh;overflow-y:auto;}
 .info-sheet.open{transform:translateX(-50%) translateY(0);}
 .info-handle{width:36px;height:3px;background:var(--dim);border-radius:2px;margin:0 auto 20px;}
 .info-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--text);margin-bottom:18px;}
