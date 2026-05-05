@@ -638,8 +638,33 @@ function saveTomorrowForecast(lat,lon,data){
   if(Object.keys(temp).length<12)return;
   try{localStorage.setItem(key,JSON.stringify({temp,precip}));}catch(e){}
 }
+let currentDayISO=null;
+function shareDaySheet(){
+  if(!rawData||!currentDayISO)return;
+  const iso=currentDayISO;
+  const city=document.getElementById('ln').textContent||'';
+  const{daily}=rawData;
+  const di=daily.time.indexOf(iso);
+  if(di===-1)return;
+  const mx=daily.temperature_2m_max[di],mn=daily.temperature_2m_min[di],av=(mx+mn)/2;
+  const[ic,ds]=wmo(daily.weathercode[di]);
+  const pr=daily.precipitation_sum[di]||0;
+  const dateStr=dayS(iso)+' '+monD(iso);
+  let text=`${city} · ${dateStr}\n${ic} ${ds}, ${ft(av)}`;
+  if(pr>0)text+=` · 💧 ${pr.toFixed(1)} mm`;
+  text+=`\n\nPast Skies — what the weather was\nhttps://app.past-skies.com`;
+  const btn=document.getElementById('day-share-btn');
+  if(navigator.share){
+    navigator.share({title:`Past Skies — ${city} ${dateStr}`,text,url:'https://app.past-skies.com'}).catch(()=>{});
+  }else{
+    navigator.clipboard.writeText(text).then(()=>{
+      if(btn){const orig=btn.textContent;btn.textContent='Copied!';setTimeout(()=>btn.textContent=orig,2000);}
+    }).catch(()=>{});
+  }
+}
 function openDaySheet(iso){
   if(!rawData)return;
+  currentDayISO=iso;
   const{daily}=rawData;
   const di=daily.time.indexOf(iso);
   if(di===-1)return;

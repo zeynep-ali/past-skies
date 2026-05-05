@@ -249,8 +249,11 @@
     <div class="info-backdrop" id="day-backdrop" onclick="closeDaySheet()"></div>
     <div class="info-sheet" id="day-sheet">
       <div class="info-handle"></div>
-      <div class="info-title" id="day-sheet-title"></div>
-      <div id="day-sheet-meta" style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin-bottom:16px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0">
+        <div class="info-title" id="day-sheet-title" style="margin-bottom:0"></div>
+        <button class="day-share-btn" id="day-share-btn" onclick="shareDaySheet()">Share ↗</button>
+      </div>
+      <div id="day-sheet-meta" style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin-bottom:16px;margin-top:6px;"></div>
       <div class="chart-card">
         <div class="chart-legend">
           <div class="cleg"><div class="cleg-swatch" style="border-top:2px solid #4dd9c0"></div>Actual</div>
