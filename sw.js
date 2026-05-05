@@ -1,10 +1,11 @@
-const CACHE = 'past-skies-v2'; // ← bump this on every deploy
+const CACHE = 'past-skies-v3'; // ← bump this on every deploy
 
 const STATIC = [
   '/index.html',
   '/style.css',
   '/app.js',
   '/fog-monster.png',
+  '/zeynep.png',
 ];
 
 const API_HOSTS = [

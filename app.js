@@ -591,7 +591,7 @@ async function doSearch(q){
       const item=document.createElement('div');
       item.className='sri';
       item.innerHTML=`<span class="sri-pin">◎</span><span>${p.name}${a}, ${p.country_code||''}</span>`;
-      item.addEventListener('click',()=>{si_el.value='';sr_el.style.display='none';track('city_search',{city:p.name,country:p.country_code||''});loadCity(p.latitude,p.longitude,p.name,p.country_code||'');});
+      item.addEventListener('click',()=>{si_el.value='';sr_el.style.display='none';track('city_search',{city:p.name,country:p.country_code||'',lat:p.latitude,lon:p.longitude});loadCity(p.latitude,p.longitude,p.name,p.country_code||'');});
       sr_el.appendChild(item);
     });
     sr_el.style.display='block';
@@ -641,10 +641,12 @@ function closeDaySheet(){
   document.getElementById('day-backdrop').classList.remove('open');
   document.getElementById('day-sheet').classList.remove('open');
 }
-function renderDayChart(iso){
+async function renderDayChart(iso){
   const body=document.getElementById('day-chart-body');
   const note=document.getElementById('day-chart-note');
   if(!body||!rawData)return;
+  body.innerHTML='<div class="chart-loading">Loading…</div>';
+  note.textContent='';
   const{hourly}=rawData;
   const actualPts=[];
   hourly.time.forEach((t,i)=>{
@@ -652,14 +654,23 @@ function renderDayChart(iso){
     const temp=hourly.temperature_2m[i];
     if(temp!=null)actualPts.push({ms:localMs(t),temp,hr:parseInt(t.slice(11,13))});
   });
+  const latR=rawData.lat.toFixed(2);
+  const lonR=rawData.lon.toFixed(2);
+  // Check localStorage first (instant), then fall back to server
+  let fcJSON=localStorage.getItem(`ps_fc_${latR}_${lonR}_${iso}`);
+  if(!fcJSON){
+    try{
+      const res=await fetch(`https://analytics.past-skies.com/forecast?date=${iso}&lat=${latR}&lon=${lonR}`);
+      if(res.ok) fcJSON=await res.text();
+    }catch(e){}
+  }
   const gfsPts=[];
-  const savedFc=localStorage.getItem(`ps_fc_${rawData.lat.toFixed(2)}_${rawData.lon.toFixed(2)}_${iso}`);
-  if(savedFc){
+  if(fcJSON){
     try{
       const startMs=localMs(iso+'T00:00');
-      Object.entries(JSON.parse(savedFc)).forEach(([hr,temp])=>{
+      Object.entries(JSON.parse(fcJSON)).forEach(([hr,temp])=>{
         const h=parseInt(hr);
-        gfsPts.push({ms:startMs+h*3600000,temp,hr:h});
+        gfsPts.push({ms:startMs+h*3600000,temp:+temp,hr:h});
       });
       gfsPts.sort((a,b)=>a.hr-b.hr);
     }catch(e){}
@@ -691,7 +702,7 @@ function renderDayChart(iso){
   const hasGFS=gfsPts.length>1;
   if(hasGFS&&maxErr!==null){const errStr=FAH?`${Math.round(maxErr*9/5)}°F`:`${maxErr.toFixed(1)}°C`;note.textContent=`Teal = actual · Pink = GFS forecast · max ${errStr} off`;}
   else if(hasGFS){note.textContent='Teal = actual · Pink dashed = GFS forecast';}
-  else{note.textContent='Forecast snapshot not available — open the app the day before to capture it';}
+  else{note.textContent='Forecast snapshot not available';}
 }
 function showLoad(){}
 function showMain(){document.getElementById('loader').classList.add('gone');document.getElementById('main').style.display='block';}
