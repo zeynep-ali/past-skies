@@ -671,48 +671,14 @@ function shareTextFallback(iso,city,ic,ds,mx,mn){
   }
 }
 
-async function shareDaySheet(){
-  if(!rawData||!currentDayISO)return;
-  const iso=currentDayISO;
-  const city=document.getElementById('ln').textContent||'';
-  const{daily}=rawData;
-  const di=daily.time.indexOf(iso);
-  if(di===-1)return;
-  const[ic,ds]=wmo(daily.weathercode[di]);
-  const mx=daily.temperature_2m_max[di],mn=daily.temperature_2m_min[di];
-  const dateStr=dayS(iso)+' · '+monD(iso);
-
-  const tempSvg=document.querySelector('#day-chart-body svg');
-  if(!tempSvg){shareTextFallback(iso,city,ic,ds,mx,mn);return;}
-
-  const precipOuter=document.getElementById('day-precip-outer');
-  const precipSvg=precipOuter&&precipOuter.style.display!=='none'
-    ?document.querySelector('#day-precip-body svg'):null;
-
-  const btn=document.getElementById('day-share-btn');
+async function buildAndShareCard(city, dateStr, ic, ds, mx, mn, tempSvgEl, precipSvgEl, btn, filename){
   if(btn){btn.textContent='…';btn.disabled=true;}
-
   try{
     const S=2,PX=20,CW=400,CARD_W=CW+PX*2;
-    const tempR=await svgToImg(tempSvg);
-    const precipR=precipSvg?await svgToImg(precipSvg):null;
+    const tempR=await svgToImg(tempSvgEl);
+    const precipR=precipSvgEl?await svgToImg(precipSvgEl):null;
 
-    // Measure card height
-    const rows=[
-      18,           // top gap
-      22,           // city
-      18,           // date
-      8,            // gap
-      28,           // weather line
-      14,           // gap
-      tempR.h,      // temp chart
-      ...(precipR?[8,precipR.h]:[]),
-      14,           // gap
-      16,           // footer
-      12,           // bottom gap
-    ];
-    const CARD_H=rows.reduce((s,h)=>s+h,0);
-
+    const CARD_H=[18,22,18,8,28,14,tempR.h,...(precipR?[8,precipR.h]:[]),14,16,12].reduce((s,h)=>s+h,0);
     const canvas=document.createElement('canvas');
     canvas.width=CARD_W*S;canvas.height=CARD_H*S;
     const ctx=canvas.getContext('2d');
@@ -743,11 +709,7 @@ async function shareDaySheet(){
 
     adv(14);
     ctx.drawImage(tempR.img,PX,y,CW,tempR.h);adv(tempR.h);
-
-    if(precipR){
-      adv(8);
-      ctx.drawImage(precipR.img,PX,y,CW,precipR.h);adv(precipR.h);
-    }
+    if(precipR){adv(8);ctx.drawImage(precipR.img,PX,y,CW,precipR.h);adv(precipR.h);}
 
     adv(14);
     ctx.fillStyle='rgba(255,255,255,0.18)';
@@ -757,22 +719,59 @@ async function shareDaySheet(){
 
     canvas.toBlob(async blob=>{
       if(btn){btn.textContent='Share ↗';btn.disabled=false;}
-      const file=new File([blob],`past-skies-${iso}.png`,{type:'image/png'});
+      const file=new File([blob],filename,{type:'image/png'});
       if(navigator.share&&navigator.canShare?.({files:[file]})){
         navigator.share({files:[file],title:`Past Skies — ${city} ${dateStr}`}).catch(()=>{});
       }else{
         const a=document.createElement('a');
         a.href=URL.createObjectURL(blob);
-        a.download=`past-skies-${iso}.png`;
+        a.download=filename;
         a.click();
         setTimeout(()=>URL.revokeObjectURL(a.href),10000);
       }
     },'image/png');
+    return true;
   }catch(e){
     console.error('Share image failed',e);
     if(btn){btn.textContent='Share ↗';btn.disabled=false;}
-    shareTextFallback(iso,city,ic,ds,mx,mn);
+    return false;
   }
+}
+
+async function shareDaySheet(){
+  if(!rawData||!currentDayISO)return;
+  const iso=currentDayISO;
+  const city=document.getElementById('ln').textContent||'';
+  const{daily}=rawData;
+  const di=daily.time.indexOf(iso);
+  if(di===-1)return;
+  const[ic,ds]=wmo(daily.weathercode[di]);
+  const mx=daily.temperature_2m_max[di],mn=daily.temperature_2m_min[di];
+  const tempSvg=document.querySelector('#day-chart-body svg');
+  if(!tempSvg){shareTextFallback(iso,city,ic,ds,mx,mn);return;}
+  const precipOuter=document.getElementById('day-precip-outer');
+  const precipSvg=precipOuter&&precipOuter.style.display!=='none'?document.querySelector('#day-precip-body svg'):null;
+  const btn=document.getElementById('day-share-btn');
+  const ok=await buildAndShareCard(city,dayS(iso)+' · '+monD(iso),ic,ds,mx,mn,tempSvg,precipSvg,btn,`past-skies-${iso}.png`);
+  if(!ok)shareTextFallback(iso,city,ic,ds,mx,mn);
+}
+
+async function shareMainChart(){
+  if(!rawData)return;
+  const city=document.getElementById('ln').textContent||'';
+  const off=rawData.utcOffsetSec??0;
+  const tod=cityDateStr(off,0);
+  const{daily}=rawData;
+  const di=daily.time.indexOf(tod);
+  if(di===-1)return;
+  const[ic,ds]=wmo(daily.weathercode[di]);
+  const mx=daily.temperature_2m_max[di],mn=daily.temperature_2m_min[di];
+  const tempSvg=document.querySelector('#chart-body svg');
+  if(!tempSvg)return;
+  const precipOuter=document.getElementById('precip-outer');
+  const precipSvg=precipOuter&&precipOuter.style.display!=='none'?document.querySelector('#precip-body svg'):null;
+  const btn=document.getElementById('main-share-btn');
+  await buildAndShareCard(city,'Today · '+monD(tod),ic,ds,mx,mn,tempSvg,precipSvg,btn,`past-skies-today-${tod}.png`);
 }
 function openDaySheet(iso){
   if(!rawData)return;
