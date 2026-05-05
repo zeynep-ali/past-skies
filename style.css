@@ -222,7 +222,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 .err-btn{margin-top:18px;padding:11px 28px;background:var(--glass2);border:1px solid var(--border2);border-radius:60px;font-family:'Outfit',sans-serif;font-size:13px;color:var(--text);cursor:pointer;}
 /* FOG MONSTER */
 .fog-monster{
-  position:fixed;bottom:60px;left:0;width:100%;z-index:500;
+  position:fixed;top:50%;left:0;width:100%;z-index:500;
   pointer-events:none;
   animation:fogRoll 20s linear forwards;
 }
@@ -233,11 +233,11 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
   animation:fogBob 3s ease-in-out infinite;
 }
 @keyframes fogRoll{
-  0%{transform:translateX(110vw);}
-  100%{transform:translateX(-300px);}
+  0%{transform:translateY(-50%) translateX(110vw);}
+  100%{transform:translateY(-50%) translateX(-300px);}
 }
 @keyframes fogExit{
-  to{transform:translateY(200px);opacity:0;}
+  to{transform:translateY(calc(-50% + 200px));opacity:0;}
 }
 @keyframes fogBob{
   0%,100%{transform:translateY(0);}
