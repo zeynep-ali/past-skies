@@ -751,7 +751,7 @@ async function renderDayChart(iso){
   const hasGFS=gfsPts.length>1;
   if(hasGFS&&maxErr!==null){const errStr=FAH?`${Math.round(maxErr*9/5)}°F`:`${maxErr.toFixed(1)}°C`;note.textContent=`Teal = actual · Pink = GFS forecast · max ${errStr} off`;}
   else if(hasGFS){note.textContent='Teal = actual · Pink dashed = GFS forecast';}
-  else{note.textContent='Forecast snapshot not available';}
+  else{note.textContent='Forecast snapshot unavailable';}
 }
 function showLoad(){}
 function showMain(){document.getElementById('loader').classList.add('gone');document.getElementById('main').style.display='block';}
