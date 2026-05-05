@@ -43,7 +43,7 @@ function wmoForHour(code, dtMs, daily){
   return wmo(code);
 }
 
-let FAH=true,rawData=null;
+let FAH=true,rawData=null,fogMonsterTimer=null;
 const c2f=c=>c*9/5+32;
 const ft=c=>c==null?'—':FAH?Math.round(c2f(c))+'°F':Math.round(c)+'°C';
 const fn=c=>c==null?'—':(FAH?Math.round(c2f(c)):Math.round(c));
@@ -72,6 +72,9 @@ function setStatus(t){const e=document.getElementById('updated-ts');if(e)e.textC
 
 function renderAll(data){
   rawData=data;
+  if(fogMonsterTimer){clearTimeout(fogMonsterTimer);fogMonsterTimer=null;}
+  const existing=document.getElementById('fog-monster');
+  if(existing) existing.remove();
   renderMain(data);
   renderChart(data);
   renderPrecipChart(data);
@@ -100,7 +103,7 @@ function renderAll(data){
     const maxErrorC=calcForecastMaxError(data.hourly,data.histFc,off);
     const hasLargeError=maxErrorC!=null&&(maxErrorC*9/5)>4;
     if(isFoggy||hasLargeError){
-      setTimeout(()=>spawnFogMonster(isFoggy,hasLargeError?maxErrorC:null),1500);
+      fogMonsterTimer=setTimeout(()=>spawnFogMonster(isFoggy,hasLargeError?maxErrorC:null),1500);
     }
   }
 }
